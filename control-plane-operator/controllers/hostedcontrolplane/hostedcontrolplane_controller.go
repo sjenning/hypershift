@@ -7,12 +7,13 @@ import (
 	"encoding/base64"
 	"encoding/hex"
 	"fmt"
-	rbacv1 "k8s.io/api/rbac/v1"
 	"math/big"
 	"math/rand"
 	"reflect"
 	"strings"
 	"time"
+
+	rbacv1 "k8s.io/api/rbac/v1"
 
 	"github.com/blang/semver"
 	"github.com/go-logr/logr"
@@ -873,15 +874,23 @@ func (r *HostedControlPlaneReconciler) generateControlPlaneManifests(ctx context
 
 func createKubeAPIServerService(client client.Client, hcp *hyperv1.HostedControlPlane, namespace string) (*corev1.Service, error) {
 	svc := &corev1.Service{}
+	namespacedName := types.NamespacedName{
+		Namespace: namespace,
+		Name:      kubeAPIServerServiceName,
+	}
+	if err := client.Get(context.TODO(), namespacedName, svc); err == nil {
+		return svc, nil
+	}
 	svc.Namespace = namespace
 	svc.Name = kubeAPIServerServiceName
 	svc.Spec.Selector = map[string]string{"app": "kube-apiserver"}
-	svc.Spec.Type = corev1.ServiceTypeLoadBalancer
+	svc.Spec.Type = corev1.ServiceTypeNodePort
 	svc.Spec.Ports = []corev1.ServicePort{
 		{
 			Port:       6443,
 			Protocol:   corev1.ProtocolTCP,
 			TargetPort: intstr.FromInt(6443),
+			NodePort:   32001,
 		},
 	}
 	svc.OwnerReferences = ensureHCPOwnerRef(hcp, svc.OwnerReferences)
@@ -895,15 +904,23 @@ func createKubeAPIServerService(client client.Client, hcp *hyperv1.HostedControl
 
 func createVPNServerService(client client.Client, hcp *hyperv1.HostedControlPlane, namespace string) (*corev1.Service, error) {
 	svc := &corev1.Service{}
+	namespacedName := types.NamespacedName{
+		Namespace: namespace,
+		Name:      vpnServiceName,
+	}
+	if err := client.Get(context.TODO(), namespacedName, svc); err == nil {
+		return svc, nil
+	}
 	svc.Namespace = namespace
 	svc.Name = vpnServiceName
 	svc.Spec.Selector = map[string]string{"app": "openvpn-server"}
-	svc.Spec.Type = corev1.ServiceTypeLoadBalancer
+	svc.Spec.Type = corev1.ServiceTypeNodePort
 	svc.Spec.Ports = []corev1.ServicePort{
 		{
 			Port:       1194,
 			Protocol:   corev1.ProtocolTCP,
 			TargetPort: intstr.FromInt(1194),
+			NodePort:   32002,
 		},
 	}
 	svc.OwnerReferences = ensureHCPOwnerRef(hcp, svc.OwnerReferences)
@@ -1065,20 +1082,7 @@ func createOauthServerRoute(namespace string) *routev1.Route {
 }
 
 func getLoadBalancerServiceAddress(c client.Client, ctx context.Context, key client.ObjectKey) (string, error) {
-	svc := &corev1.Service{}
-	if err := c.Get(ctx, key, svc); err != nil {
-		return "", fmt.Errorf("failed to get service: %w", err)
-	}
-	var addr string
-	if len(svc.Status.LoadBalancer.Ingress) > 0 {
-		switch {
-		case svc.Status.LoadBalancer.Ingress[0].Hostname != "":
-			addr = svc.Status.LoadBalancer.Ingress[0].Hostname
-		case svc.Status.LoadBalancer.Ingress[0].IP != "":
-			addr = svc.Status.LoadBalancer.Ingress[0].IP
-		}
-	}
-	return addr, nil
+	return "api.example.ocp.variantweb.net", nil
 }
 
 func getRouteAddress(c client.Client, ctx context.Context, key client.ObjectKey) (string, error) {
