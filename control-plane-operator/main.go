@@ -47,7 +47,6 @@ func main() {
 }
 
 const (
-	openVPNImage = "quay.io/hypershift/openvpn:latest"
 	// FIXME: Set to upstream image when DNS resolution is fixed for etcd service
 	etcdOperatorImage = "quay.io/hypershift/etcd-operator:v0.9.4-patched"
 	// TODO: switch to upstream after a tagged release contains https://github.com/kubernetes-sigs/apiserver-network-proxy/pull/245
@@ -145,7 +144,6 @@ func NewStartCommand() *cobra.Command {
 			},
 			ComponentImages: map[string]string{
 				"hosted-cluster-config-operator": hostedClusterConfigOperatorImage,
-				"vpn":                            openVPNImage,
 				"etcd-operator":                  etcdOperatorImage,
 				"konnectivity-server":            konnectivityServerImage,
 				"konnectivity-agent":             konnectivityAgentImage,
