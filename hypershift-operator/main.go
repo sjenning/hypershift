@@ -82,6 +82,7 @@ type StartOptions struct {
 	OIDCStorageProviderS3BucketName  string
 	OIDCStorageProviderS3Region      string
 	OIDCStorageProviderS3Credentials string
+	ExternalDNSZoneID                string
 }
 
 func NewStartCommand() *cobra.Command {
@@ -104,6 +105,7 @@ func NewStartCommand() *cobra.Command {
 		PrivatePlatform:                  string(hyperv1.NonePlatform),
 		OIDCStorageProviderS3Region:      "",
 		OIDCStorageProviderS3Credentials: "",
+		ExternalDNSZoneID:                "",
 	}
 
 	cmd.Flags().StringVar(&opts.Namespace, "namespace", opts.Namespace, "The namespace this operator lives in")
@@ -121,6 +123,7 @@ func NewStartCommand() *cobra.Command {
 	cmd.Flags().StringVar(&opts.OIDCStorageProviderS3BucketName, "oidc-storage-provider-s3-bucket-name", "", "Name of the bucket in which to store the clusters OIDC discovery information. Required for AWS guest clusters")
 	cmd.Flags().StringVar(&opts.OIDCStorageProviderS3Region, "oidc-storage-provider-s3-region", opts.OIDCStorageProviderS3Region, "Region in which the OIDC bucket is located. Required for AWS guest clusters")
 	cmd.Flags().StringVar(&opts.OIDCStorageProviderS3Credentials, "oidc-storage-provider-s3-credentials", opts.OIDCStorageProviderS3Credentials, "Location of the credentials file for the OIDC bucket. Required for AWS guest clusters.")
+	cmd.Flags().StringVar(&opts.ExternalDNSZoneID, "external-dns-zone-id", opts.ExternalDNSZoneID, "A public Route53 HostedZone in which annotated services can publish DNS records (AWS only).")
 
 	cmd.Run = func(cmd *cobra.Command, args []string) {
 		ctx, cancel := context.WithCancel(ctrl.SetupSignalHandler())
@@ -277,6 +280,15 @@ func run(ctx context.Context, opts *StartOptions, log logr.Logger) error {
 			CreateOrUpdateProvider: createOrUpdate,
 		}).SetupWithManager(mgr); err != nil {
 			return fmt.Errorf("unable to create controller: %w", err)
+		}
+		if opts.ExternalDNSZoneID != "" {
+			if err := (&aws.ExternalDNSReconciler{
+				Client:                 mgr.GetClient(),
+				CreateOrUpdateProvider: createOrUpdate,
+				ExternalDNSZoneID:      opts.ExternalDNSZoneID,
+			}).SetupWithManager(mgr); err != nil {
+				return fmt.Errorf("unable to create controller: %w", err)
+			}
 		}
 	}
 
