@@ -11,4 +11,8 @@ builds:
   main: .
   flags:
   - -mod=vendor
+- id: admission-tracer
+  main: ./contrib/admission-tracer
+  flags:
+  - -mod=vendor
 defaultBaseImage: gcr.io/distroless/static:debug-nonroot

@@ -12,8 +12,8 @@ webhooks:
     service:
       name: admission-tracer
       namespace: hypershift
-      path: /awsendpointservices
-  name: awsendpointservices.hypershift.openshift.io
+      path: /trace
+  name: admissiontracer.hypershift.openshift.io
   rules:
   - apiGroups:
     - hypershift.openshift.io
@@ -25,6 +25,8 @@ webhooks:
     resources:
     - awsendpointservices
     - awsendpointservices/status
+    - hostedclusters
+    - hostedclusters/status
     scope: Namespaced
   sideEffects: None
   timeoutSeconds: 10
