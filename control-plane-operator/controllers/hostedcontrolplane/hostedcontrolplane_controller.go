@@ -542,6 +542,11 @@ func (r *HostedControlPlaneReconciler) update(ctx context.Context, hostedControl
 	// Block here until infra status reports readiness
 	// TODO(dmace): This seems a bit heavy handed vs. making more granular bits no-op if
 	// they don't have the specific required inputs
+	infraReadyCondition := meta.FindStatusCondition(hostedControlPlane.Status.Conditions, string(hyperv1.InfrastructureReady))
+	if infraReadyCondition == nil || infraReadyCondition.Status != metav1.ConditionTrue {
+		r.Log.Info("Waiting for infrastructure to be ready before proceeding")
+		return nil
+	}
 	infraStatus, err := r.reconcileInfrastructureStatus(ctx, hostedControlPlane)
 	if err != nil {
 		return fmt.Errorf("failed to look up infra status: %w", err)
