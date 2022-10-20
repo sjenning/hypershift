@@ -3184,6 +3184,10 @@ func (r *HostedClusterReconciler) validateConfigAndClusterCapabilities(ctx conte
 		errs = append(errs, fmt.Errorf("invalid service account signing key: %w", err))
 	}
 
+	if err := r.validateAWSConfig(hc); err != nil {
+		errs = append(errs, err)
+	}
+
 	if err := r.validateAzureConfig(ctx, hc); err != nil {
 		errs = append(errs, err)
 	}
@@ -3269,6 +3273,51 @@ func isProgressing(ctx context.Context, hc *hyperv1.HostedCluster) (bool, error)
 
 	// cluster is conditions are good and is at desired release
 	return false, nil
+}
+
+func (r *HostedClusterReconciler) validateAWSConfig(hc *hyperv1.HostedCluster) error {
+	if hc.Spec.Platform.Type != hyperv1.AWSPlatform {
+		return nil
+	}
+
+	if hc.Spec.Platform.AWS == nil {
+		return errors.New("aws cluster needs .spec.platform.aws to be filled")
+	}
+
+	var errs []error
+	for _, serviceType := range []hyperv1.ServiceType{
+		hyperv1.Konnectivity,
+		hyperv1.OAuthServer,
+		hyperv1.OVNSbDb,
+		hyperv1.Ignition,
+	} {
+		servicePublishingStrategy := hyperutil.ServicePublishingStrategyByTypeByHC(hc, serviceType)
+		if servicePublishingStrategy == nil {
+			errs = append(errs, fmt.Errorf("service type %v not found", serviceType))
+		}
+
+		if servicePublishingStrategy != nil && servicePublishingStrategy.Type != hyperv1.Route {
+			errs = append(errs, fmt.Errorf("service type %v with publishing strategy %v is not supported, use Route", serviceType, servicePublishingStrategy.Type))
+		}
+	}
+
+	servicePublishingStrategy := hyperutil.ServicePublishingStrategyByTypeByHC(hc, hyperv1.APIServer)
+	if servicePublishingStrategy == nil {
+		errs = append(errs, fmt.Errorf("service type %v not found", hyperv1.APIServer))
+	}
+
+	if hc.Spec.Platform.AWS.EndpointAccess == hyperv1.Private {
+		if servicePublishingStrategy != nil && servicePublishingStrategy.Type != hyperv1.Route && servicePublishingStrategy.Type != hyperv1.LoadBalancer {
+			errs = append(errs, fmt.Errorf("service type %v with publishing strategy %v", hyperv1.APIServer, servicePublishingStrategy.Type))
+		}
+
+	} else {
+		if !hyperutil.UseDedicatedDNSForKASByHC(hc) && servicePublishingStrategy.Type != hyperv1.LoadBalancer {
+			errs = append(errs, fmt.Errorf("service type %v with publishing strategy %v is not supported, use Route", hyperv1.APIServer, servicePublishingStrategy.Type))
+		}
+	}
+
+	return utilerrors.NewAggregate(errs)
 }
 
 func (r *HostedClusterReconciler) validateAzureConfig(ctx context.Context, hc *hyperv1.HostedCluster) error {
